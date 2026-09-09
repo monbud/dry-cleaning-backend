@@ -1,0 +1,26 @@
+{
+  "name": "backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch --env-file-if-exists=.env src/server.js",
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "demo": "node scripts/demo.js",
+    "test": "node --test --test-concurrency=1 test/*.test.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.1.0",
+    "helmet": "^8.1.0",
+    "mongoose": "^8.19.0",
+    "multer": "^2.0.2",
+    "sharp": "^0.35.4",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.2.0",
+    "supertest": "^7.1.4"
+  }
+}
