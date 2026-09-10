@@ -69,13 +69,13 @@ app.use('/api', (req, res, next) => {
 // app.use('/api', createRateLimiter({ windowMs: 60000, limit: 180 }));
 app.get('/api/health', (req, res) => res.status(mongoose.connection.readyState === 1 ? 200 : 503).json({ status: mongoose.connection.readyState === 1 ? 'ok' : 'database unavailable' }));
 // const authLimiter = createRateLimiter({ windowMs: 15 * 60000, limit: 25, message: { error: 'Too many attempts. Please try again in 15 minutes.' } });
-app.post('/api/auth/register', authLimiter, async (req, res) => {
+app.post('/api/auth/register', /*authLimiter,*/ async (req, res) => {
   const data = z.object({ name: short, email, password }).parse(req.body);
   const user = await User.create({ ...data, password: await bcrypt.hash(data.password, 12) });
   await session(res, user);
   res.status(201).json({ user: { _id: user._id, name: user.name, email: user.email } });
 });
-app.post('/api/auth/login', authLimiter, async (req, res) => {
+app.post('/api/auth/login', /*authLimiter,*/ async (req, res) => {
   const data = z.object({ email, password: z.string().max(72) }).parse(req.body);
   const user = await User.findOne({ email: data.email }).select('+password');
   if (!user || !await bcrypt.compare(data.password, user.password)) fail(401, 'Email or password is incorrect.');
@@ -91,14 +91,14 @@ app.patch('/api/auth/profile', auth, async (req, res) => {
   const data = z.object({ name: short }).parse(req.body);
   res.json({ user: await User.findByIdAndUpdate(req.user._id, data, { new: true }) });
 });
-app.post('/api/auth/password', auth, authLimiter, async (req, res) => {
+app.post('/api/auth/password', auth, /*authLimiter,*/ async (req, res) => {
   const data = z.object({ currentPassword: z.string().max(72), password }).parse(req.body);
   const user = await User.findById(req.user._id).select('+password');
   if (!await bcrypt.compare(data.currentPassword, user.password)) fail(400, 'Current password is incorrect.');
   user.password = await bcrypt.hash(data.password, 12); user.resetHash = undefined; user.resetExpires = undefined; await user.save();
   await Session.deleteMany({ user: user._id }); await session(res, user); res.json({ ok: true });
 });
-app.post('/api/auth/forgot-password', authLimiter, async (req, res) => {
+app.post('/api/auth/forgot-password', /*authLimiter,*/ async (req, res) => {
   const data = z.object({ email }).parse(req.body);
   if (!process.env.MAILJET_API_KEY || !process.env.MAILJET_SECRET_KEY || !process.env.MAIL_FROM) fail(503, 'Password reset email is not configured. Contact the administrator.');
   const user = await User.findOne({ email: data.email });
@@ -108,7 +108,7 @@ app.post('/api/auth/forgot-password', authLimiter, async (req, res) => {
   }
   res.json({ message: 'If an account exists, a password reset email will arrive shortly.' });
 });
-app.post('/api/auth/reset-password', authLimiter, async (req, res) => {
+app.post('/api/auth/reset-password', /*authLimiter,*/ async (req, res) => {
   const data = z.object({ token: z.string().length(64), password }).parse(req.body);
   const updated = await User.findOneAndUpdate({ resetHash: hash(data.token), resetExpires: { $gt: new Date() } }, { $set: { password: await bcrypt.hash(data.password, 12) }, $unset: { resetHash: 1, resetExpires: 1 } });
   if (!updated) fail(400, 'This reset link is invalid or expired.');
