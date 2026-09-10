@@ -66,9 +66,9 @@ app.use('/api', (req, res, next) => {
   if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.get('origin') !== new URL(appUrl()).origin) return res.status(403).json({ error: 'Request origin is not allowed.' });
   next();
 });
-app.use('/api', createRateLimiter({ windowMs: 60000, limit: 180 }));
+// app.use('/api', createRateLimiter({ windowMs: 60000, limit: 180 }));
 app.get('/api/health', (req, res) => res.status(mongoose.connection.readyState === 1 ? 200 : 503).json({ status: mongoose.connection.readyState === 1 ? 'ok' : 'database unavailable' }));
-const authLimiter = createRateLimiter({ windowMs: 15 * 60000, limit: 25, message: { error: 'Too many attempts. Please try again in 15 minutes.' } });
+// const authLimiter = createRateLimiter({ windowMs: 15 * 60000, limit: 25, message: { error: 'Too many attempts. Please try again in 15 minutes.' } });
 app.post('/api/auth/register', authLimiter, async (req, res) => {
   const data = z.object({ name: short, email, password }).parse(req.body);
   const user = await User.create({ ...data, password: await bcrypt.hash(data.password, 12) });
