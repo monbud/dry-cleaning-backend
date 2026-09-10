@@ -11,8 +11,10 @@ import { User, Session, Business, Customer, Price, Order, Photo, Payment, Expens
 import { token, hash, reference, priceItems, validTransition, validWebhook } from './domain.js';
 import { sendReset, paystack } from './services.js';
 import { groupPrices, savePriceGroup, removePriceGroup } from './pricing.js';
+import { configureProxy } from './proxy.js';
 
 const app = express();
+configureProxy(app);
 app.disable('x-powered-by');
 app.use(helmet());
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
@@ -50,6 +52,7 @@ const activeSubscription = (req, res, next) => {
 };
 
 // Raw body must be preserved for Paystack signature verification.
+// This webhook implementation will be substituted for a background task transaction verification later on
 app.post('/api/payments/webhook', express.raw({ type: 'application/json', limit: '256kb' }), async (req, res) => {
   if (!Buffer.isBuffer(req.body) || !validWebhook(req.body, req.get('x-paystack-signature'), process.env.PAYSTACK_SECRET_KEY)) return res.sendStatus(401);
   const event = JSON.parse(req.body.toString());
