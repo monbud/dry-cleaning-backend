@@ -46,8 +46,9 @@ async function tenant(req, res, next) {
   if (!req.business) return res.status(404).json({ error: 'Business not found.' });
   next();
 }
+const subscriptionsRequired = () => process.env.SUBSCRIPTIONS_REQUIRED !== 'false';
 const activeSubscription = (req, res, next) => {
-  if (!req.business.subscriptionUntil || req.business.subscriptionUntil < new Date()) return res.status(402).json({ error: 'Renew this business subscription to add new records. Existing records remain accessible.' });
+  if (subscriptionsRequired() && (!req.business.subscriptionUntil || req.business.subscriptionUntil < new Date())) return res.status(402).json({ error: 'Renew this business subscription to add new records. Existing records remain accessible.' });
   next();
 };
 
@@ -210,6 +211,7 @@ router.post('/orders/:id/payment', async (req, res) => {
   res.status(201).json({ payment });
 });
 router.post('/subscription', async (req, res) => {
+  if (!subscriptionsRequired()) fail(409, 'Subscriptions are not currently required. No renewal payment is needed.');
   const referenceId = reference('SUB');
   const checkout = await paystack('/transaction/initialize', { email: req.user.email, amount: 100000, currency: 'NGN', reference: referenceId, callback_url: `${appUrl()}/dashboard?payment=${referenceId}` });
   await Payment.create({ business: req.business._id, kind: 'subscription', amount: 100000, reference: referenceId, channel: 'Paystack' });
@@ -218,7 +220,7 @@ router.post('/subscription', async (req, res) => {
 
 app.get('/api/overview', auth, async (req, res) => {
   const businesses = await Business.find({ owner: req.user._id, archived: false }); const ids = businesses.map(b => b._id);
-  res.json({ businesses, customers: await Customer.find({ business: { $in: ids } }).sort({ name: 1 }), orders: await Order.find({ business: { $in: ids } }).populate('customer', 'name phone').sort({ createdAt: -1 }), payments: await Payment.find({ business: { $in: ids }, status: 'paid' }), expenses: await Expense.find({ business: { $in: ids } }) });
+  res.json({ subscriptionsRequired: subscriptionsRequired(), businesses, customers: await Customer.find({ business: { $in: ids } }).sort({ name: 1 }), orders: await Order.find({ business: { $in: ids } }).populate('customer', 'name phone').sort({ createdAt: -1 }), payments: await Payment.find({ business: { $in: ids }, status: 'paid' }), expenses: await Expense.find({ business: { $in: ids } }) });
 });
 app.get('/api/directory', async (req, res) => {
   const businesses = await Business.find({ archived: false, listed: true }).select('name city state address phone description').sort({ name: 1 }).limit(200);

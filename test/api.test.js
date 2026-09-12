@@ -77,6 +77,41 @@ test('status transitions are sequential, payment records resist duplicates, and 
   await owner.get(`/api/businesses/${business._id}/orders`).expect(200);
   await owner.delete(`/api/businesses/${business._id}`).set('Origin', origin).expect(409);
 });
+test('free access permits expired business writes, prevents renewal charges, and can be reversed', async () => {
+  const previous = process.env.SUBSCRIPTIONS_REQUIRED;
+  const originalFetch = globalThis.fetch;
+  let providerCalls = 0;
+  globalThis.fetch = async () => { providerCalls++; throw new Error('Unexpected provider call'); };
+  const base = `/api/businesses/${business._id}`;
+  try {
+    process.env.SUBSCRIPTIONS_REQUIRED = 'false';
+    assert.equal((await owner.get('/api/overview').expect(200)).body.subscriptionsRequired, false);
+    await post(owner, `${base}/customers`, { name: 'Free Customer', phone: '08044444444' }).expect(201);
+    await post(owner, `${base}/prices`, { category: 'Free service', service: 'Wash only', amount: 10000 }).expect(201);
+    const buffer = await sharp({ create: { width: 10, height: 10, channels: 3, background: '#400039' } }).png().toBuffer();
+    await owner.post(`${base}/photos`).set('Origin', origin).attach('photo', buffer, 'free.png').expect(201);
+    await post(owner, `${base}/orders`, { customer: customer._id, dueDate: '2026-12-20', conditionAcknowledged: true, items: [{ priceId: price._id, quantity: 1, condition: 'Intact' }] }).expect(201);
+    await post(owner, `${base}/expenses`, { supplier: 'Test supplier', description: 'Supplies', amount: 10000, date: '2026-09-12', method: 'Cash' }).expect(201);
+    const paymentsBefore = await Payment.countDocuments();
+    await post(owner, `${base}/subscription`, {}).expect(409);
+    assert.equal(providerCalls, 0);
+    assert.equal(await Payment.countDocuments(), paymentsBefore);
+    await post(outsider, `${base}/customers`, { name: 'Attack', phone: '08055555555' }).expect(404);
+    assert.equal((await Business.findById(business._id)).subscriptionUntil.getTime(), 0);
+    for (const value of ['true', undefined]) {
+      if (value === undefined) delete process.env.SUBSCRIPTIONS_REQUIRED;
+      else process.env.SUBSCRIPTIONS_REQUIRED = value;
+      assert.equal((await owner.get('/api/overview').expect(200)).body.subscriptionsRequired, true);
+      await post(owner, `${base}/customers`, { name: 'Blocked', phone: '08055555555' }).expect(402);
+      await owner.get(`${base}/orders`).expect(200);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previous === undefined) delete process.env.SUBSCRIPTIONS_REQUIRED;
+    else process.env.SUBSCRIPTIONS_REQUIRED = previous;
+  }
+});
+
 test('webhook settlement verifies provider amount and extends subscription only once', async () => {
   process.env.PAYSTACK_SECRET_KEY = 'sk_test_example';
   const originalFetch = globalThis.fetch; let amount = 99900;
